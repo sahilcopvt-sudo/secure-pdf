@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Secure PDF Viewer</title>
+  <title>Secure Exam Viewer</title>
 
-  <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
   <style>
@@ -11,185 +10,229 @@
       margin: 0;
       background: black;
       color: white;
-      font-family: Arial, sans-serif;
+      font-family: Arial;
       overflow: hidden;
     }
 
+    #login-box {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    #login-box input {
+      padding: 10px;
+      font-size: 16px;
+    }
+
+    #login-box button {
+      padding: 10px 20px;
+      margin-top: 10px;
+      cursor: pointer;
+    }
+
     #pdf-container {
-      width: 100%;
+      display: none;
       height: 100vh;
-      position: relative;
     }
 
     #scrollable-area {
-      width: 100%;
       height: 100%;
       overflow-y: scroll;
-      overflow-x: hidden;
-    }
-
-    #pages-wrapper {
-      padding: 0;
-    }
-
-    .page-wrapper {
-      position: relative;
-      margin: 0;
     }
 
     canvas {
-      display: block;
-      margin: 0 auto;
       width: 100%;
     }
 
-    /* ✅ GLOBAL MASK (FIXED) */
+    /* MASK */
     #global-mask {
       position: fixed;
       bottom: 0;
-      left: 0;
       width: 100%;
-      height: 70%;  /* hide 70% */
+      height: 70%;
       background: black;
       pointer-events: none;
       z-index: 999;
     }
 
     /* watermark */
-    .page-watermark {
+    .watermark {
       position: absolute;
       top: 40%;
       left: 20%;
-      font-size: 28px;
       opacity: 0.2;
-      color: white;
       transform: rotate(-30deg);
-      pointer-events: none;
-      z-index: 1000;
-      width: 60%;
-      text-align: center;
+      font-size: 28px;
     }
 
-    #loading {
-      text-align: center;
-      padding: 40vh 20px;
-    }
-
-    .controls {
+    #timer {
       position: fixed;
       top: 10px;
-      right: 10px;
-      background: rgba(0,0,0,0.9);
+      left: 10px;
+      background: red;
       padding: 10px;
-      z-index: 1001;
-    }
-
-    .controls button {
-      margin: 5px;
-      padding: 6px 10px;
-      cursor: pointer;
+      z-index: 1000;
     }
   </style>
 </head>
 
 <body>
 
+<!-- LOGIN -->
+<div id="login-box">
+  <h2>Enter Mobile Number</h2>
+  <input type="text" id="username" />
+  <br>
+  <button onclick="login()">Start Exam</button>
+</div>
+
+<!-- TIMER -->
+<div id="timer">30:00</div>
+
+<!-- PDF -->
 <div id="pdf-container">
   <div id="scrollable-area">
-    <div id="loading">Loading PDF...</div>
-    <div id="pages-wrapper"></div>
+    <div id="pages"></div>
   </div>
 </div>
 
-<!-- ✅ GLOBAL MASK -->
+<!-- MASK -->
 <div id="global-mask"></div>
-
-<div class="controls">
-  <button onclick="previousPage()">←</button>
-  <button onclick="nextPage()">→</button>
-</div>
 
 <script>
 const url = "https://raw.githubusercontent.com/sahilcopvt-sudo/secure-pdf/main/ilovepdf_merged%20(1).pdf";
 
-/* watermark */
-let mobile = "User";
-let session = Math.random().toString(36).substring(2,8).toUpperCase();
-
+let user = null;
+let session = Math.random().toString(36).substring(2,8);
 let pdfDoc = null;
-let currentPageNum = 1;
 
-/* load PDF */
-pdfjsLib.getDocument(url).promise.then(function(pdf) {
-  pdfDoc = pdf;
-  document.getElementById('loading').style.display = 'none';
+/* LOGIN */
+function login() {
+  let name = document.getElementById("username").value;
 
-  for (let i = 1; i <= pdf.numPages; i++) {
-    renderPage(i);
+  if (!name) {
+    alert("Enter mobile number");
+    return;
   }
-});
 
-function renderPage(num) {
-  pdfDoc.getPage(num).then(function(page) {
+  user = name;
+  localStorage.setItem("user", name);
 
-    const wrapper = document.getElementById('pages-wrapper');
+  document.getElementById("login-box").style.display = "none";
+  document.getElementById("pdf-container").style.display = "block";
 
-    const pageWrapper = document.createElement('div');
-    pageWrapper.className = 'page-wrapper';
-    pageWrapper.id = 'page-' + num;
+  startExam();
+}
 
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+/* AUTO LOGIN */
+window.onload = function() {
+  let saved = localStorage.getItem("user");
+  if (saved) {
+    user = saved;
+    document.getElementById("login-box").style.display = "none";
+    document.getElementById("pdf-container").style.display = "block";
+    startExam();
+  }
+};
 
-    let viewport = page.getViewport({ scale: 1.5 });
+/* START EXAM */
+function startExam() {
+  loadPDF();
+  startTimer();
+  startTracking();
+}
 
-    canvas.height = viewport.height;
-    canvas.width = viewport.width;
+/* LOAD PDF */
+function loadPDF() {
+  pdfjsLib.getDocument(url).promise.then(pdf => {
+    pdfDoc = pdf;
 
-    page.render({
-      canvasContext: ctx,
-      viewport: viewport
-    });
-
-    pageWrapper.appendChild(canvas);
-
-    /* watermark */
-    const watermark = document.createElement('div');
-    watermark.className = 'page-watermark';
-    watermark.innerHTML = mobile + " | " + session;
-    pageWrapper.appendChild(watermark);
-
-    wrapper.appendChild(pageWrapper);
+    for (let i = 1; i <= pdf.numPages; i++) {
+      renderPage(i);
+    }
   });
 }
 
-/* navigation */
-function nextPage() {
-  currentPageNum++;
-  document.getElementById('page-' + currentPageNum)?.scrollIntoView({behavior:"smooth"});
+function renderPage(num) {
+  pdfDoc.getPage(num).then(page => {
+
+    let canvas = document.createElement("canvas");
+    let ctx = canvas.getContext("2d");
+
+    let viewport = page.getViewport({scale:1.5});
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+
+    page.render({canvasContext: ctx, viewport: viewport});
+
+    let wrapper = document.createElement("div");
+
+    /* watermark */
+    let wm = document.createElement("div");
+    wm.className = "watermark";
+    wm.innerHTML = user + " | " + session;
+
+    wrapper.appendChild(canvas);
+    wrapper.appendChild(wm);
+
+    document.getElementById("pages").appendChild(wrapper);
+  });
 }
 
-function previousPage() {
-  currentPageNum--;
-  document.getElementById('page-' + currentPageNum)?.scrollIntoView({behavior:"smooth"});
+/* TIMER */
+let time = 30 * 60;
+
+function startTimer() {
+  let t = setInterval(() => {
+
+    let m = Math.floor(time / 60);
+    let s = time % 60;
+
+    document.getElementById("timer").innerText =
+      `${m}:${s<10?'0':''}${s}`;
+
+    time--;
+
+    if (time < 0) {
+      clearInterval(t);
+      endExam();
+    }
+
+  },1000);
 }
 
-/* ❌ disable right click */
+function endExam() {
+  alert("Time Over");
+  document.body.innerHTML = "<h1 style='text-align:center;margin-top:40vh'>Exam Finished</h1>";
+}
+
+/* TRACKING */
+function startTracking() {
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      alert("⚠️ Tab switch detected");
+    }
+  });
+
+  document.addEventListener("keyup", e => {
+    if (e.key === "PrintScreen") {
+      alert("⚠️ Screenshot attempt detected");
+    }
+  });
+}
+
+/* BLOCK */
 document.addEventListener("contextmenu", e => e.preventDefault());
 
-/* ❌ disable copy */
 document.onkeydown = function(e) {
   if (e.ctrlKey && (e.key === 'c' || e.key === 'u' || e.key === 's')) {
     return false;
   }
 };
-
-/* ❌ tab switch block */
-document.addEventListener("visibilitychange", function() {
-  if (document.hidden) {
-    document.body.innerHTML = "Access Blocked";
-  }
-});
 </script>
 
 </body>
