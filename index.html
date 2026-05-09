@@ -12,59 +12,70 @@
       background: black;
       color: white;
       font-family: Arial, sans-serif;
+      overflow: hidden;
     }
 
     #pdf-container {
       width: 100%;
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 20px;
-      overflow-y: scroll;
       height: 100vh;
+      position: relative;
+      overflow: hidden;
     }
 
-    #pdf-container::-webkit-scrollbar {
+    #scrollable-area {
+      width: 100%;
+      height: 100%;
+      overflow-y: scroll;
+      overflow-x: hidden;
+    }
+
+    #scrollable-area::-webkit-scrollbar {
       width: 10px;
     }
 
-    #pdf-container::-webkit-scrollbar-track {
+    #scrollable-area::-webkit-scrollbar-track {
       background: #333;
     }
 
-    #pdf-container::-webkit-scrollbar-thumb {
+    #scrollable-area::-webkit-scrollbar-thumb {
       background: #666;
       border-radius: 5px;
     }
 
-    #pdf-container::-webkit-scrollbar-thumb:hover {
+    #scrollable-area::-webkit-scrollbar-thumb:hover {
       background: #888;
     }
 
-    canvas {
-      display: block;
-      margin: 20px auto;
-      border: 1px solid #444;
-      max-width: 100%;
-      height: auto;
+    #pages-wrapper {
+      padding: 20px;
     }
 
     .page-wrapper {
       position: relative;
-      margin-bottom: 10px;
+      margin-bottom: 20px;
     }
 
-    /* 30% visible */
-    .mask {
+    canvas {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Show only 30% of PDF */
+    .page-mask {
       position: absolute;
       top: 30%;
+      left: 0;
       width: 100%;
       height: 70%;
       background: black;
       pointer-events: none;
+      z-index: 100;
     }
 
     /* watermark */
-    .watermark {
+    .page-watermark {
       position: absolute;
       top: 40%;
       left: 20%;
@@ -73,6 +84,9 @@
       color: white;
       transform: rotate(-30deg);
       pointer-events: none;
+      z-index: 101;
+      width: 60%;
+      text-align: center;
     }
 
     #error-message {
@@ -84,7 +98,7 @@
 
     #loading {
       text-align: center;
-      padding: 20px;
+      padding: 40vh 20px;
       font-size: 18px;
     }
 
@@ -92,10 +106,11 @@
       position: fixed;
       top: 10px;
       right: 10px;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.9);
       padding: 15px;
       border-radius: 5px;
       z-index: 1000;
+      border: 1px solid #444;
     }
 
     .controls button {
@@ -118,11 +133,21 @@
       color: #888;
       font-size: 14px;
       padding: 10px 0;
+      border-bottom: 1px solid #444;
+      margin-bottom: 10px;
     }
   </style>
 </head>
 
 <body>
+
+<div id="pdf-container">
+  <div id="scrollable-area">
+    <div id="loading">Loading PDF...</div>
+    <div id="error-message"></div>
+    <div id="pages-wrapper"></div>
+  </div>
+</div>
 
 <div class="controls">
   <div id="page-info">Page <span id="current-page">0</span> of <span id="total-pages">0</span></div>
@@ -131,21 +156,16 @@
   <button onclick="scrollToTop()">↑ Top</button>
 </div>
 
-<div id="loading">Loading PDF...</div>
-<div id="error-message"></div>
-<div id="pdf-container"></div>
-
 <script>
 /* 🔥 IMPORTANT: Use raw GitHub URL or direct PDF link */
-// Change this to your PDF URL - GitHub raw content example:
 const url = "https://raw.githubusercontent.com/sahilcopvt-sudo/secure-pdf/main/ilovepdf_merged%20(1).pdf";
 
 /* 👤 Watermark */
-let mobile = "User"; // yaha mobile dynamic kar sakte ho
+let mobile = "User";
 let session = Math.random().toString(36).substring(2,8).toUpperCase();
 
 let pdfDoc = null;
-let currentPage = 1;
+let currentPageNum = 1;
 let totalPages = 0;
 
 /* 📄 PDF load */
@@ -164,8 +184,8 @@ pdfjsLib.getDocument(url).promise.then(function(pdf) {
 });
 
 function renderAllPages() {
-  const container = document.getElementById('pdf-container');
-  container.innerHTML = '';
+  const wrapper = document.getElementById('pages-wrapper');
+  wrapper.innerHTML = '';
   
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
     renderPage(pageNum);
@@ -174,16 +194,16 @@ function renderAllPages() {
 
 function renderPage(pageNum) {
   pdfDoc.getPage(pageNum).then(function(page) {
-    const container = document.getElementById('pdf-container');
+    const wrapper = document.getElementById('pages-wrapper');
     
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-wrapper';
     pageWrapper.style.position = 'relative';
+    pageWrapper.id = 'page-' + pageNum;
     
     const canvas = document.createElement('canvas');
-    canvas.id = 'pdf-canvas-' + pageNum;
-    
     const ctx = canvas.getContext('2d');
+    
     let viewport = page.getViewport({ scale: 1.5 });
     
     canvas.height = viewport.height;
@@ -192,70 +212,74 @@ function renderPage(pageNum) {
     page.render({
       canvasContext: ctx,
       viewport: viewport
-    }).promise.then(() => {
-      updatePageInfo();
     });
     
     pageWrapper.appendChild(canvas);
     
-    // Add mask
+    // Add mask (show only 30%)
     const mask = document.createElement('div');
-    mask.className = 'mask';
+    mask.className = 'page-mask';
     pageWrapper.appendChild(mask);
     
     // Add watermark
     const watermark = document.createElement('div');
-    watermark.className = 'watermark';
+    watermark.className = 'page-watermark';
     watermark.innerHTML = mobile + " | " + session;
     pageWrapper.appendChild(watermark);
     
-    container.appendChild(pageWrapper);
+    wrapper.appendChild(pageWrapper);
     
   }).catch(function(error) {
-    console.error("Page error:", error);
+    console.error("Page " + pageNum + " error:", error);
   });
 }
 
 function updatePageInfo() {
-  const container = document.getElementById('pdf-container');
-  const pageHeight = container.scrollTop;
+  const scrollArea = document.getElementById('scrollable-area');
+  const pages = document.querySelectorAll('.page-wrapper');
+  
   let visiblePage = 1;
   
-  // Update based on scroll position (approximate)
-  if (container.scrollHeight > 0) {
-    visiblePage = Math.ceil((container.scrollTop + window.innerHeight/2) / (container.scrollHeight / totalPages));
-  }
+  pages.forEach((page, index) => {
+    const rect = page.getBoundingClientRect();
+    const scrollRect = scrollArea.getBoundingClientRect();
+    
+    // Check if page is in viewport
+    if (rect.top < scrollRect.bottom && rect.bottom > scrollRect.top) {
+      visiblePage = index + 1;
+    }
+  });
   
   document.getElementById('current-page').textContent = Math.min(visiblePage, totalPages);
 }
 
 function nextPage() {
-  const container = document.getElementById('pdf-container');
-  const canvases = container.querySelectorAll('canvas');
-  
-  if (canvases.length > 0) {
-    const nextCanvas = canvases[Math.min(currentPage, canvases.length - 1)];
-    nextCanvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    currentPage++;
+  const pages = document.querySelectorAll('.page-wrapper');
+  if (currentPageNum < pages.length) {
+    currentPageNum++;
+    const page = document.getElementById('page-' + currentPageNum);
+    if (page) {
+      page.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 }
 
 function previousPage() {
-  const container = document.getElementById('pdf-container');
-  const canvases = container.querySelectorAll('canvas');
-  
-  if (canvases.length > 0 && currentPage > 1) {
-    currentPage--;
-    const prevCanvas = canvases[currentPage - 1];
-    prevCanvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (currentPageNum > 1) {
+    currentPageNum--;
+    const page = document.getElementById('page-' + currentPageNum);
+    if (page) {
+      page.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   }
 }
 
 function scrollToTop() {
-  document.getElementById('pdf-container').scrollTop = 0;
+  document.getElementById('scrollable-area').scrollTop = 0;
 }
 
-document.getElementById('pdf-container').addEventListener('scroll', updatePageInfo);
+const scrollArea = document.getElementById('scrollable-area');
+scrollArea.addEventListener('scroll', updatePageInfo);
 
 /* ❌ Right click block */
 document.addEventListener("contextmenu", e => e.preventDefault());
