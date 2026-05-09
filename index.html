@@ -19,7 +19,6 @@
       width: 100%;
       height: 100vh;
       position: relative;
-      overflow: hidden;
     }
 
     #scrollable-area {
@@ -29,23 +28,6 @@
       overflow-x: hidden;
     }
 
-    #scrollable-area::-webkit-scrollbar {
-      width: 10px;
-    }
-
-    #scrollable-area::-webkit-scrollbar-track {
-      background: #333;
-    }
-
-    #scrollable-area::-webkit-scrollbar-thumb {
-      background: #666;
-      border-radius: 5px;
-    }
-
-    #scrollable-area::-webkit-scrollbar-thumb:hover {
-      background: #888;
-    }
-
     #pages-wrapper {
       padding: 0;
     }
@@ -53,27 +35,24 @@
     .page-wrapper {
       position: relative;
       margin: 0;
-      overflow: hidden;
     }
 
     canvas {
       display: block;
       margin: 0 auto;
-      max-width: 100%;
-      height: auto;
       width: 100%;
     }
 
-    /* MASK: Hide bottom 70% of each page */
-    .page-mask {
-      position: absolute;
-      top: 30%;
+    /* ✅ GLOBAL MASK (FIXED) */
+    #global-mask {
+      position: fixed;
+      bottom: 0;
       left: 0;
       width: 100%;
-      height: 70%;
+      height: 70%;  /* hide 70% */
       background: black;
       pointer-events: none;
-      z-index: 100;
+      z-index: 999;
     }
 
     /* watermark */
@@ -86,57 +65,29 @@
       color: white;
       transform: rotate(-30deg);
       pointer-events: none;
-      z-index: 101;
+      z-index: 1000;
       width: 60%;
       text-align: center;
-    }
-
-    #error-message {
-      color: red;
-      text-align: center;
-      padding: 20px;
-      font-size: 18px;
     }
 
     #loading {
       text-align: center;
       padding: 40vh 20px;
-      font-size: 18px;
     }
 
     .controls {
       position: fixed;
       top: 10px;
       right: 10px;
-      background: rgba(0, 0, 0, 0.95);
-      padding: 15px;
-      border-radius: 5px;
-      z-index: 1000;
-      border: 1px solid #444;
+      background: rgba(0,0,0,0.9);
+      padding: 10px;
+      z-index: 1001;
     }
 
     .controls button {
-      background: #007bff;
-      color: white;
-      border: none;
-      padding: 8px 15px;
       margin: 5px;
-      border-radius: 3px;
+      padding: 6px 10px;
       cursor: pointer;
-      font-size: 14px;
-    }
-
-    .controls button:hover {
-      background: #0056b3;
-    }
-
-    #page-info {
-      text-align: center;
-      color: #888;
-      font-size: 14px;
-      padding: 10px 0;
-      border-bottom: 1px solid #444;
-      margin-bottom: 10px;
     }
   </style>
 </head>
@@ -146,186 +97,94 @@
 <div id="pdf-container">
   <div id="scrollable-area">
     <div id="loading">Loading PDF...</div>
-    <div id="error-message"></div>
     <div id="pages-wrapper"></div>
   </div>
 </div>
 
+<!-- ✅ GLOBAL MASK -->
+<div id="global-mask"></div>
+
 <div class="controls">
-  <div id="page-info">Page <span id="current-page">0</span> of <span id="total-pages">0</span></div>
-  <button onclick="previousPage()">← Previous</button>
-  <button onclick="nextPage()">Next →</button>
-  <button onclick="scrollToTop()">↑ Top</button>
+  <button onclick="previousPage()">←</button>
+  <button onclick="nextPage()">→</button>
 </div>
 
 <script>
-/* 🔥 IMPORTANT: Use raw GitHub URL or direct PDF link */
 const url = "https://raw.githubusercontent.com/sahilcopvt-sudo/secure-pdf/main/ilovepdf_merged%20(1).pdf";
 
-/* 👤 Watermark */
+/* watermark */
 let mobile = "User";
 let session = Math.random().toString(36).substring(2,8).toUpperCase();
 
 let pdfDoc = null;
 let currentPageNum = 1;
-let totalPages = 0;
-let pageHeights = [];
 
-/* 📄 PDF load */
+/* load PDF */
 pdfjsLib.getDocument(url).promise.then(function(pdf) {
   pdfDoc = pdf;
-  totalPages = pdf.numPages;
-  document.getElementById('total-pages').textContent = totalPages;
   document.getElementById('loading').style.display = 'none';
-  
-  renderAllPages();
-  
-}).catch(function(error) {
-  document.getElementById('error-message').innerHTML = "Error loading PDF: " + error.message;
-  document.getElementById('loading').style.display = 'none';
-  console.error("PDF load error:", error);
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    renderPage(i);
+  }
 });
 
-function renderAllPages() {
-  const wrapper = document.getElementById('pages-wrapper');
-  wrapper.innerHTML = '';
-  pageHeights = [];
-  
-  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-    renderPage(pageNum);
-  }
-}
+function renderPage(num) {
+  pdfDoc.getPage(num).then(function(page) {
 
-function renderPage(pageNum) {
-  pdfDoc.getPage(pageNum).then(function(page) {
     const wrapper = document.getElementById('pages-wrapper');
-    
+
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-wrapper';
-    pageWrapper.style.position = 'relative';
-    pageWrapper.style.overflow = 'hidden';
-    pageWrapper.id = 'page-' + pageNum;
-    
+    pageWrapper.id = 'page-' + num;
+
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    
+
     let viewport = page.getViewport({ scale: 1.5 });
-    
+
     canvas.height = viewport.height;
     canvas.width = viewport.width;
-    canvas.style.display = 'block';
-    canvas.style.width = '100%';
-    canvas.style.height = 'auto';
-    
+
     page.render({
       canvasContext: ctx,
       viewport: viewport
     });
-    
+
     pageWrapper.appendChild(canvas);
-    pageHeights.push(viewport.height);
-    
-    // Add mask (show only 30%, hide bottom 70%)
-    const mask = document.createElement('div');
-    mask.className = 'page-mask';
-    mask.style.position = 'absolute';
-    mask.style.top = '30%';
-    mask.style.left = '0';
-    mask.style.width = '100%';
-    mask.style.height = '70%';
-    mask.style.background = 'black';
-    mask.style.pointerEvents = 'none';
-    mask.style.zIndex = '100';
-    pageWrapper.appendChild(mask);
-    
-    // Add watermark
+
+    /* watermark */
     const watermark = document.createElement('div');
     watermark.className = 'page-watermark';
-    watermark.style.position = 'absolute';
-    watermark.style.top = '40%';
-    watermark.style.left = '20%';
-    watermark.style.fontSize = '28px';
-    watermark.style.opacity = '0.2';
-    watermark.style.color = 'white';
-    watermark.style.transform = 'rotate(-30deg)';
-    watermark.style.pointerEvents = 'none';
-    watermark.style.zIndex = '101';
-    watermark.style.width = '60%';
-    watermark.style.textAlign = 'center';
     watermark.innerHTML = mobile + " | " + session;
     pageWrapper.appendChild(watermark);
-    
+
     wrapper.appendChild(pageWrapper);
-    
-  }).catch(function(error) {
-    console.error("Page " + pageNum + " error:", error);
   });
 }
 
-function updatePageInfo() {
-  const scrollArea = document.getElementById('scrollable-area');
-  const pages = document.querySelectorAll('.page-wrapper');
-  
-  let visiblePage = 1;
-  const scrollTop = scrollArea.scrollTop;
-  const viewportHeight = scrollArea.clientHeight;
-  
-  let accumulatedHeight = 0;
-  
-  pages.forEach((page, index) => {
-    const pageHeight = page.offsetHeight;
-    
-    // If this page is visible in viewport
-    if (scrollTop + viewportHeight / 2 >= accumulatedHeight && 
-        scrollTop <= accumulatedHeight + pageHeight) {
-      visiblePage = index + 1;
-    }
-    
-    accumulatedHeight += pageHeight;
-  });
-  
-  document.getElementById('current-page').textContent = Math.min(visiblePage, totalPages);
-}
-
+/* navigation */
 function nextPage() {
-  const pages = document.querySelectorAll('.page-wrapper');
-  if (currentPageNum < pages.length) {
-    currentPageNum++;
-    const page = document.getElementById('page-' + currentPageNum);
-    if (page) {
-      page.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }
+  currentPageNum++;
+  document.getElementById('page-' + currentPageNum)?.scrollIntoView({behavior:"smooth"});
 }
 
 function previousPage() {
-  if (currentPageNum > 1) {
-    currentPageNum--;
-    const page = document.getElementById('page-' + currentPageNum);
-    if (page) {
-      page.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }
+  currentPageNum--;
+  document.getElementById('page-' + currentPageNum)?.scrollIntoView({behavior:"smooth"});
 }
 
-function scrollToTop() {
-  document.getElementById('scrollable-area').scrollTop = 0;
-}
-
-const scrollArea = document.getElementById('scrollable-area');
-scrollArea.addEventListener('scroll', updatePageInfo);
-
-/* ❌ Right click block */
+/* ❌ disable right click */
 document.addEventListener("contextmenu", e => e.preventDefault());
 
-/* ❌ Copy shortcut block */
+/* ❌ disable copy */
 document.onkeydown = function(e) {
   if (e.ctrlKey && (e.key === 'c' || e.key === 'u' || e.key === 's')) {
     return false;
   }
 };
 
-/* ❌ Tab switch block */
+/* ❌ tab switch block */
 document.addEventListener("visibilitychange", function() {
   if (document.hidden) {
     document.body.innerHTML = "Access Blocked";
