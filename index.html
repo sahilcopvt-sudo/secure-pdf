@@ -10,26 +10,62 @@
     body {
       margin: 0;
       background: black;
-      overflow: hidden;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    #pdf-container {
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 20px;
+      overflow-y: scroll;
+      height: 100vh;
+    }
+
+    #pdf-container::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    #pdf-container::-webkit-scrollbar-track {
+      background: #333;
+    }
+
+    #pdf-container::-webkit-scrollbar-thumb {
+      background: #666;
+      border-radius: 5px;
+    }
+
+    #pdf-container::-webkit-scrollbar-thumb:hover {
+      background: #888;
     }
 
     canvas {
       display: block;
-      margin: auto;
+      margin: 20px auto;
+      border: 1px solid #444;
+      max-width: 100%;
+      height: auto;
+    }
+
+    .page-wrapper {
+      position: relative;
+      margin-bottom: 10px;
     }
 
     /* 30% visible */
-    #mask {
+    .mask {
       position: absolute;
       top: 30%;
       width: 100%;
       height: 70%;
       background: black;
+      pointer-events: none;
     }
 
     /* watermark */
-    #watermark {
-      position: fixed;
+    .watermark {
+      position: absolute;
       top: 40%;
       left: 20%;
       font-size: 28px;
@@ -42,18 +78,62 @@
     #error-message {
       color: red;
       text-align: center;
-      padding-top: 20px;
+      padding: 20px;
       font-size: 18px;
+    }
+
+    #loading {
+      text-align: center;
+      padding: 20px;
+      font-size: 18px;
+    }
+
+    .controls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 15px;
+      border-radius: 5px;
+      z-index: 1000;
+    }
+
+    .controls button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      margin: 5px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .controls button:hover {
+      background: #0056b3;
+    }
+
+    #page-info {
+      text-align: center;
+      color: #888;
+      font-size: 14px;
+      padding: 10px 0;
     }
   </style>
 </head>
 
 <body>
 
-<canvas id="pdf-canvas"></canvas>
-<div id="mask"></div>
-<div id="watermark"></div>
+<div class="controls">
+  <div id="page-info">Page <span id="current-page">0</span> of <span id="total-pages">0</span></div>
+  <button onclick="previousPage()">← Previous</button>
+  <button onclick="nextPage()">Next →</button>
+  <button onclick="scrollToTop()">↑ Top</button>
+</div>
+
+<div id="loading">Loading PDF...</div>
 <div id="error-message"></div>
+<div id="pdf-container"></div>
 
 <script>
 /* 🔥 IMPORTANT: Use raw GitHub URL or direct PDF link */
@@ -64,34 +144,118 @@ const url = "https://raw.githubusercontent.com/sahilcopvt-sudo/secure-pdf/main/i
 let mobile = "User"; // yaha mobile dynamic kar sakte ho
 let session = Math.random().toString(36).substring(2,8).toUpperCase();
 
-document.getElementById("watermark").innerHTML =
-  mobile + " | " + session;
+let pdfDoc = null;
+let currentPage = 1;
+let totalPages = 0;
 
 /* 📄 PDF load */
 pdfjsLib.getDocument(url).promise.then(function(pdf) {
-  pdf.getPage(1).then(function(page) {
+  pdfDoc = pdf;
+  totalPages = pdf.numPages;
+  document.getElementById('total-pages').textContent = totalPages;
+  document.getElementById('loading').style.display = 'none';
+  
+  renderAllPages();
+  
+}).catch(function(error) {
+  document.getElementById('error-message').innerHTML = "Error loading PDF: " + error.message;
+  document.getElementById('loading').style.display = 'none';
+  console.error("PDF load error:", error);
+});
 
-    let canvas = document.getElementById("pdf-canvas");
-    let ctx = canvas.getContext("2d");
+function renderAllPages() {
+  const container = document.getElementById('pdf-container');
+  container.innerHTML = '';
+  
+  for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+    renderPage(pageNum);
+  }
+}
 
+function renderPage(pageNum) {
+  pdfDoc.getPage(pageNum).then(function(page) {
+    const container = document.getElementById('pdf-container');
+    
+    const pageWrapper = document.createElement('div');
+    pageWrapper.className = 'page-wrapper';
+    pageWrapper.style.position = 'relative';
+    
+    const canvas = document.createElement('canvas');
+    canvas.id = 'pdf-canvas-' + pageNum;
+    
+    const ctx = canvas.getContext('2d');
     let viewport = page.getViewport({ scale: 1.5 });
-
+    
     canvas.height = viewport.height;
     canvas.width = viewport.width;
-
+    
     page.render({
       canvasContext: ctx,
       viewport: viewport
+    }).promise.then(() => {
+      updatePageInfo();
     });
-
+    
+    pageWrapper.appendChild(canvas);
+    
+    // Add mask
+    const mask = document.createElement('div');
+    mask.className = 'mask';
+    pageWrapper.appendChild(mask);
+    
+    // Add watermark
+    const watermark = document.createElement('div');
+    watermark.className = 'watermark';
+    watermark.innerHTML = mobile + " | " + session;
+    pageWrapper.appendChild(watermark);
+    
+    container.appendChild(pageWrapper);
+    
   }).catch(function(error) {
-    document.getElementById("error-message").innerHTML = "Error loading PDF page: " + error.message;
     console.error("Page error:", error);
   });
-}).catch(function(error) {
-  document.getElementById("error-message").innerHTML = "Error loading PDF: " + error.message;
-  console.error("PDF load error:", error);
-});
+}
+
+function updatePageInfo() {
+  const container = document.getElementById('pdf-container');
+  const pageHeight = container.scrollTop;
+  let visiblePage = 1;
+  
+  // Update based on scroll position (approximate)
+  if (container.scrollHeight > 0) {
+    visiblePage = Math.ceil((container.scrollTop + window.innerHeight/2) / (container.scrollHeight / totalPages));
+  }
+  
+  document.getElementById('current-page').textContent = Math.min(visiblePage, totalPages);
+}
+
+function nextPage() {
+  const container = document.getElementById('pdf-container');
+  const canvases = container.querySelectorAll('canvas');
+  
+  if (canvases.length > 0) {
+    const nextCanvas = canvases[Math.min(currentPage, canvases.length - 1)];
+    nextCanvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    currentPage++;
+  }
+}
+
+function previousPage() {
+  const container = document.getElementById('pdf-container');
+  const canvases = container.querySelectorAll('canvas');
+  
+  if (canvases.length > 0 && currentPage > 1) {
+    currentPage--;
+    const prevCanvas = canvases[currentPage - 1];
+    prevCanvas.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+function scrollToTop() {
+  document.getElementById('pdf-container').scrollTop = 0;
+}
+
+document.getElementById('pdf-container').addEventListener('scroll', updatePageInfo);
 
 /* ❌ Right click block */
 document.addEventListener("contextmenu", e => e.preventDefault());
