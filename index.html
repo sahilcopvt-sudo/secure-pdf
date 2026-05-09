@@ -38,6 +38,13 @@
       transform: rotate(-30deg);
       pointer-events: none;
     }
+
+    #error-message {
+      color: red;
+      text-align: center;
+      padding-top: 20px;
+      font-size: 18px;
+    }
   </style>
 </head>
 
@@ -46,10 +53,12 @@
 <canvas id="pdf-canvas"></canvas>
 <div id="mask"></div>
 <div id="watermark"></div>
+<div id="error-message"></div>
 
 <script>
-/* 🔥 IMPORTANT: yaha apna PDF link daalo */
-const url = "https://github.com/sahilcopvt-sudo/secure-pdf/blob/8113ba74191381e72f435bf6aae3c9d9b17ae15a/ilovepdf_merged%20(1).pdf";
+/* 🔥 IMPORTANT: Use raw GitHub URL or direct PDF link */
+// Change this to your PDF URL - GitHub raw content example:
+const url = "https://raw.githubusercontent.com/sahilcopvt-sudo/secure-pdf/main/ilovepdf_merged%20(1).pdf";
 
 /* 👤 Watermark */
 let mobile = "User"; // yaha mobile dynamic kar sakte ho
@@ -75,7 +84,13 @@ pdfjsLib.getDocument(url).promise.then(function(pdf) {
       viewport: viewport
     });
 
+  }).catch(function(error) {
+    document.getElementById("error-message").innerHTML = "Error loading PDF page: " + error.message;
+    console.error("Page error:", error);
   });
+}).catch(function(error) {
+  document.getElementById("error-message").innerHTML = "Error loading PDF: " + error.message;
+  console.error("PDF load error:", error);
 });
 
 /* ❌ Right click block */
