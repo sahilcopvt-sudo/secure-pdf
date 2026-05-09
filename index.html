@@ -47,12 +47,13 @@
     }
 
     #pages-wrapper {
-      padding: 20px;
+      padding: 0;
     }
 
     .page-wrapper {
       position: relative;
-      margin-bottom: 20px;
+      margin: 0;
+      overflow: hidden;
     }
 
     canvas {
@@ -60,9 +61,10 @@
       margin: 0 auto;
       max-width: 100%;
       height: auto;
+      width: 100%;
     }
 
-    /* Show only 30% of PDF */
+    /* MASK: Hide bottom 70% of each page */
     .page-mask {
       position: absolute;
       top: 30%;
@@ -106,7 +108,7 @@
       position: fixed;
       top: 10px;
       right: 10px;
-      background: rgba(0, 0, 0, 0.9);
+      background: rgba(0, 0, 0, 0.95);
       padding: 15px;
       border-radius: 5px;
       z-index: 1000;
@@ -167,6 +169,7 @@ let session = Math.random().toString(36).substring(2,8).toUpperCase();
 let pdfDoc = null;
 let currentPageNum = 1;
 let totalPages = 0;
+let pageHeights = [];
 
 /* 📄 PDF load */
 pdfjsLib.getDocument(url).promise.then(function(pdf) {
@@ -186,6 +189,7 @@ pdfjsLib.getDocument(url).promise.then(function(pdf) {
 function renderAllPages() {
   const wrapper = document.getElementById('pages-wrapper');
   wrapper.innerHTML = '';
+  pageHeights = [];
   
   for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
     renderPage(pageNum);
@@ -199,6 +203,7 @@ function renderPage(pageNum) {
     const pageWrapper = document.createElement('div');
     pageWrapper.className = 'page-wrapper';
     pageWrapper.style.position = 'relative';
+    pageWrapper.style.overflow = 'hidden';
     pageWrapper.id = 'page-' + pageNum;
     
     const canvas = document.createElement('canvas');
@@ -208,6 +213,9 @@ function renderPage(pageNum) {
     
     canvas.height = viewport.height;
     canvas.width = viewport.width;
+    canvas.style.display = 'block';
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
     
     page.render({
       canvasContext: ctx,
@@ -215,15 +223,35 @@ function renderPage(pageNum) {
     });
     
     pageWrapper.appendChild(canvas);
+    pageHeights.push(viewport.height);
     
-    // Add mask (show only 30%)
+    // Add mask (show only 30%, hide bottom 70%)
     const mask = document.createElement('div');
     mask.className = 'page-mask';
+    mask.style.position = 'absolute';
+    mask.style.top = '30%';
+    mask.style.left = '0';
+    mask.style.width = '100%';
+    mask.style.height = '70%';
+    mask.style.background = 'black';
+    mask.style.pointerEvents = 'none';
+    mask.style.zIndex = '100';
     pageWrapper.appendChild(mask);
     
     // Add watermark
     const watermark = document.createElement('div');
     watermark.className = 'page-watermark';
+    watermark.style.position = 'absolute';
+    watermark.style.top = '40%';
+    watermark.style.left = '20%';
+    watermark.style.fontSize = '28px';
+    watermark.style.opacity = '0.2';
+    watermark.style.color = 'white';
+    watermark.style.transform = 'rotate(-30deg)';
+    watermark.style.pointerEvents = 'none';
+    watermark.style.zIndex = '101';
+    watermark.style.width = '60%';
+    watermark.style.textAlign = 'center';
     watermark.innerHTML = mobile + " | " + session;
     pageWrapper.appendChild(watermark);
     
@@ -239,15 +267,21 @@ function updatePageInfo() {
   const pages = document.querySelectorAll('.page-wrapper');
   
   let visiblePage = 1;
+  const scrollTop = scrollArea.scrollTop;
+  const viewportHeight = scrollArea.clientHeight;
+  
+  let accumulatedHeight = 0;
   
   pages.forEach((page, index) => {
-    const rect = page.getBoundingClientRect();
-    const scrollRect = scrollArea.getBoundingClientRect();
+    const pageHeight = page.offsetHeight;
     
-    // Check if page is in viewport
-    if (rect.top < scrollRect.bottom && rect.bottom > scrollRect.top) {
+    // If this page is visible in viewport
+    if (scrollTop + viewportHeight / 2 >= accumulatedHeight && 
+        scrollTop <= accumulatedHeight + pageHeight) {
       visiblePage = index + 1;
     }
+    
+    accumulatedHeight += pageHeight;
   });
   
   document.getElementById('current-page').textContent = Math.min(visiblePage, totalPages);
