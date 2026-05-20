@@ -3,6 +3,7 @@
 <head>
   <title>PDF Exam Viewer</title>
 
+  <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
   <style>
@@ -14,12 +15,8 @@
       overflow: hidden;
     }
 
-    #pdf-container {
-      height: 100vh;
-    }
-
     #scrollable-area {
-      height: 100%;
+      height: 100vh;
       overflow-y: scroll;
     }
 
@@ -28,7 +25,7 @@
       display: block;
     }
 
-    /* 🔥 ONLY 20% VISIBLE */
+    /* MASK (only 20% visible) */
     #global-mask {
       position: fixed;
       bottom: 0;
@@ -39,7 +36,7 @@
       z-index: 999;
     }
 
-    /* watermark */
+    /* WATERMARK */
     .watermark {
       position: absolute;
       top: 40%;
@@ -47,10 +44,9 @@
       opacity: 0.2;
       transform: rotate(-30deg);
       font-size: 28px;
-      color: white;
     }
 
-    /* timer */
+    /* TIMER */
     #timer {
       position: fixed;
       top: 10px;
@@ -60,7 +56,7 @@
       z-index: 1000;
     }
 
-    /* controls */
+    /* CONTROLS */
     #controls {
       position: fixed;
       top: 10px;
@@ -97,24 +93,24 @@
 </div>
 
 <!-- PDF -->
-<div id="pdf-container">
-  <div id="scrollable-area">
-    <div id="pages"></div>
-  </div>
+<div id="scrollable-area">
+  <div id="pages"></div>
 </div>
 
 <!-- MASK -->
 <div id="global-mask"></div>
 
 <script>
-const url = "https://github.com/sahilcopvt-sudo/secure-pdf/blob/7ef98db2a6a242bee79bb566996627edaea549f3/ilovepdf_merged%20(1).pdf
-";
-  
+
+// ✅ IMPORTANT: Use RAW / CDN link (FIXED)
+const url = "https://cdn.jsdelivr.net/gh/sahilcopvt-sudo/secure-pdf@7ef98db2a6a242bee79bb566996627edaea549f3/ilovepdf_merged%20(1).pdf";
+
 let pdfDoc = null;
 let totalPages = 0;
 
-/* LOAD PDF */
-pdfjsLib.getDocument(url).promise.then(pdf => {
+// LOAD PDF
+pdfjsLib.getDocument(url).promise
+.then(pdf => {
   pdfDoc = pdf;
   totalPages = pdf.numPages;
 
@@ -123,20 +119,24 @@ pdfjsLib.getDocument(url).promise.then(pdf => {
   for (let i = 1; i <= totalPages; i++) {
     renderPage(i);
   }
+})
+.catch(err => {
+  console.error("PDF Load Error:", err);
+  alert("PDF not loading. Check console (F12)");
 });
 
-/* RENDER */
+// RENDER PAGE
 function renderPage(num) {
   pdfDoc.getPage(num).then(page => {
 
     let canvas = document.createElement("canvas");
     let ctx = canvas.getContext("2d");
 
-    let viewport = page.getViewport({scale:1.5});
+    let viewport = page.getViewport({ scale: 1.5 });
     canvas.height = viewport.height;
     canvas.width = viewport.width;
 
-    page.render({canvasContext: ctx, viewport: viewport});
+    page.render({ canvasContext: ctx, viewport: viewport });
 
     let wrapper = document.createElement("div");
     wrapper.style.position = "relative";
@@ -153,19 +153,19 @@ function renderPage(num) {
   });
 }
 
-/* GO TO PAGE */
+// GO TO PAGE
 function goToPage() {
-  let page = document.getElementById("page-input").value;
+  let page = parseInt(document.getElementById("page-input").value);
 
-  if (page < 1 || page > totalPages) {
+  if (!page || page < 1 || page > totalPages) {
     alert("Invalid page");
     return;
   }
 
-  document.getElementById("page-" + page).scrollIntoView({behavior:"smooth"});
+  document.getElementById("page-" + page).scrollIntoView({ behavior: "smooth" });
 }
 
-/* AUTO PAGE UPDATE */
+// AUTO PAGE NUMBER UPDATE
 document.getElementById("scrollable-area").addEventListener("scroll", () => {
   let pages = document.querySelectorAll("[id^='page-']");
   let scrollTop = document.getElementById("scrollable-area").scrollTop;
@@ -177,7 +177,7 @@ document.getElementById("scrollable-area").addEventListener("scroll", () => {
   });
 });
 
-/* TIMER */
+// TIMER
 let time = 30 * 60;
 
 setInterval(() => {
@@ -185,18 +185,19 @@ setInterval(() => {
   let s = time % 60;
 
   document.getElementById("timer").innerText =
-    `${m}:${s<10?'0':''}${s}`;
+    `${m}:${s < 10 ? '0' : ''}${s}`;
 
   time--;
 
   if (time < 0) {
     alert("Time Over");
-    document.body.innerHTML = "Exam Finished";
+    document.body.innerHTML = "<h1 style='color:white;text-align:center;margin-top:20%'>Exam Finished</h1>";
   }
-},1000);
+}, 1000);
 
-/* BLOCK */
+// DISABLE RIGHT CLICK
 document.addEventListener("contextmenu", e => e.preventDefault());
+
 </script>
 
 </body>
